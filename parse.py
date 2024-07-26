@@ -6,6 +6,9 @@
 used to parse input strings for use in other functions
 
 12 July 2024: took out the file dir and replaced it with os.getcwd()
+26 July 2024: removed unnecessary or redundant code
+
+notes: MEF files are not supported in this script. only fits files will work
 
 version 2 - July 10, 2024
 
@@ -16,15 +19,13 @@ import numpy as np
 from astropy.io import fits
 import argparse
 
-__version__ = "20240710"
+__version__ = "20240726"
 __author__="clarkacohido"
 
 
-fileDirectory = os.getcwd()
-
 def fparse(inputstring):
 
-    fields = list(inputstring.split(' '))
+    fields = inputstring.split()
     final = {}
 
     imname = fields[0]
@@ -33,8 +34,7 @@ def fparse(inputstring):
     if imname.find('[') == -1:
         finalim = imname
         try:
-            path = os.path.join(fileDirectory, finalim)
-            fits.open(path)
+            fits.open(finalim)
         except Exception as e:
             print(e)
             print('File (' + finalim + ') not found.')
@@ -42,8 +42,7 @@ def fparse(inputstring):
     else:
         finalim = imname[:imname.find('[')]
         try:
-            path = os.path.join(fileDirectory, finalim)
-            fits.open(path)
+            fits.open(finalim)
         except Exception as e:
             print(e)
             print('File (' + finalim + ') not found.')
@@ -57,14 +56,9 @@ def fparse(inputstring):
         try:
             ranges = imname[imname.find('[')+1:imname.find(']')]
 
-            xandy = list(ranges.split(','))    
-            xrange = list(xandy[0].split(':'))
-            yrange = list(xandy[1].split(':'))
-
-            for i in xrange:
-                int(i)
-            for i in yrange:
-                int(i)
+            xandy = ranges.split(',')
+            xrange = xandy[0].split(':')
+            yrange = xandy[1].split(':')
 
             ##image region
             final['x min'] = int(xrange[0])-1
@@ -76,16 +70,14 @@ def fparse(inputstring):
         except Exception as e:
             print('error: ' + str(e))
             
-    fitsfile = fits.open(fileDirectory + '/' +  final["image"])
+    fitsfile = fits.open(final["image"])
     fitsdata = fitsfile[0].data
 
     try:
         fitsdata = fitsdata[final['y min']:final['y max'], final['x min']:final['x max']]
-        #final['data'] = fitsdata
     except Exception as e:
-        #final['data'] = fitsdata
-        print()
         ##ignore because no x/y bounds were specified
+        pass
 
     final['data'] = fitsdata
     return(final)

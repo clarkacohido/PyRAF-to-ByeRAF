@@ -80,6 +80,7 @@ version 1 - July 12, 2024
 22Jul 2024: Implemented sigma clipping
 23Jul 2024: Made correction to midpt and mode functions. added documentation
 24Jul 2024: Implemented format Stdout and returnType parameters
+30Jul 2024: Removed unnecessary code
 
 
 bugs:
@@ -95,7 +96,7 @@ from statistics import stdev
 import argparse
 from parse import fparse
 
-__version__ = '20240726'
+__version__ = '20240730'
 __author__ = 'clarkacohido'
 
 def main(instring, 
@@ -114,12 +115,12 @@ def main(instring,
     ###parsed string (should be a dictionary)
     ps = fparse(instring)
 
-    if ps == False:
+    if ps == None:
         print('file not found')
         return
 
     ###field array
-    farray = list(fields.split(','))
+    farray = fields.split(',')
 
     ###fits data (already masked based on x/y lims in the input)
     dat = np.where((ps['data'] >= lower) & (ps['data'] <= upper), ps['data'], np.nan)
@@ -128,7 +129,7 @@ def main(instring,
     for i in range(nclip):
         sig = np.nanstd(dat) ##stddev - the standard deviation of the pixel distribution
         mean = np.nanmean(dat) ##mean - the mean of the pixel distribution
-        dat = np.where((dat >= mean - (lsig * sig)) & (dat <= mean + (usig * sig)), dat, np.nan)
+        dat = np.where((dat >= mean - (lsigma * sig)) & (dat <= mean + (usigma * sig)), dat, np.nan)
     
 
     ###field dictionary
@@ -150,13 +151,12 @@ def main(instring,
     digidat = []
     
     for n in ibindat.flatten():
-        digidat.append(bins[n-1]) ## -1 because it gives the bin number, not the index so its starts from 1 instead of 0
+        digidat.append(bins[n-1])
         
     fd["mode"] = stats.mode(digidat, nan_policy='omit')[0]##mode - the mode of the pixel distribution
 
     
     ##this is the 'true' median used to calculate the interpolated median:
-    #trmed = bins[int(np.nanmedian(ibindat))-1] ## -1 because it gives the bin number, not the index so its starts from 1 instead of 0
     trmed = np.nanmedian(digidat)
     
     
@@ -170,30 +170,25 @@ def main(instring,
         fd['midpt'] = trmed - 0.5 + (numer / n2)
         
 
-    headerAr = []
     header = ''
-    
     valueAr = []
     value = ''
+
+    badKeys = [n for n in farray if n not in fd]
+    headerAr = [n for n in farray if n in fd]
     
+    valueAr = [fd[n] for n in headerAr]
     
-    
-    for x in farray:
-            try:
-                valueAr.append(fd[x]) ##must be first in order to catch key exception
-                headerAr.append(x)
-                
-                ##these are the values that will be printed
-                valuePrint = str(value) + str(fd[x]) + '    '
-                headerPrint = header + x + '    '
-                
-                ##these are the strings that will be returned in the output dictrionary
-                value = str(value) + str(fd[x]) + ','
-                header = header + x + ','
-    
-            except KeyError:
-                ##ignore because there is a keyError (like if theres an invalid field)
-                print('invalid field(s): ' + x)
+    if len(badKeys) != 0:
+        print('Unrecognized fields: ')
+        print(badKeys)
+
+    for x in headerAr:
+        valuePrint = str(value) + str(fd[x]) + '    '
+        headerPrint = header + x + '    '
+
+        value = str(value) + str(fd[x]) + ','
+        header = header + x + ','
     
     
     
@@ -212,20 +207,19 @@ def main(instring,
     else:
         print('unknown parameter: ' + format)
     
-    ##temporary dictionary made to combine the headers (keys) and values and adds it to the output dictionary
+    
+    ##temporary array that will be added to output dictionary
     temp = {}
     
     for i in range(len(valueAr)):
         temp[headerAr[i]] = valueAr[i]
-        
+
     dictOut['dict'] = temp
     
-    
-    try:     
-        if Stdout != False:
-            return(dictOut[returnType])
-    except KeyError:
-        print('Unrecognized returnType')
+    if returnType not in dictOut:
+        print('Unrecognized return type: ' + returnType)
+    elif Stdout == True:
+        return(dictOut[returnType])
 
 
 
@@ -246,8 +240,8 @@ def create_parser():
     parser.add_argument('--lower', type=float, help="lowest acceptable pixel value", default=float('-inf'))
     parser.add_argument('--upper', type=float, help="highest acceptable pixel value", default=float('inf'))
     parser.add_argument('--nclip', type=int, help="number of clipping cycles. by default no clipping is done", default=0)
-    parser.add_argument('--lsig', type=float, help="low side clipping factor in number of sigmas", default=3.0)
-    parser.add_argument('--usig', type=float, help="high side clipping factor in number of sigmas", default=3.0)
+    parser.add_argument('--lsigma', type=float, help="low side clipping factor in number of sigmas", default=3.0)
+    parser.add_argument('--usigma', type=float, help="high side clipping factor in number of sigmas", default=3.0)
     parser.add_argument('--binwidth', type=float, help="width of the histogram bins used to estimate midpt and mode", default=0.1)
     parser.add_argument('--format', type=str, help="label the output columns. if format = 'no' there are no column labels printed. by default format='yes'", default='yes')
     parser.add_argument('--Stdout', type=bool, help="returns values as an array of strings when enabled. default Stdout=False ", default=False)
@@ -263,12 +257,12 @@ if __name__ == '__main__':
     lower=args.lower
     upper=args.upper
     nclip=args.nclip
-    lsig=args.lsig
-    usig=args.usig
+    lsigma=args.lsigma
+    usigma=args.usigma
     binwidth=args.binwidth
     format=args.format
     Stdout=args.Stdout
     returnType=args.returnType
     
-    main(instring, fields, lower, upper, nclip, lsig, usig, binwidth, format, Stdout, returnType)
+    main(instring, fields, lower, upper, nclip, lsigma, usigma, binwidth, format, Stdout, returnType)
     
